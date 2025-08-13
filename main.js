@@ -1,6 +1,7 @@
 var roleHarvester = require('role.harvester');
 var roleUpgrader = require('role.upgrader');
 var roleBuilder = require('role.builder');
+const stats = require('stats');
 
 
 function buildRoadBetween(pos1, pos2) {
@@ -14,6 +15,8 @@ function buildRoadBetween(pos1, pos2) {
 
 module.exports.loop = function () {
     Game.cpu.generatePixel()
+    
+    //console.log("---Tick: ", Game.time, "---");
 
     //clean memory - check for death
     for(var name in Memory.creeps) {
@@ -22,11 +25,14 @@ module.exports.loop = function () {
             console.log('Clearing non-existing creep memory:', name);
         }
     }
+    
+    stats.run();
+    
 
     //minimum roles
     //-harvesters
     var harvesters = _.filter(Game.creeps, (creep) => creep.memory.role == 'harvester');
-    console.log('Harvesters: ' + harvesters.length);
+    //console.log('Harvesters: ' + harvesters.length);
 
     if(harvesters.length < 3) {
         let newName = 'Harvester' + Game.time;
@@ -37,7 +43,7 @@ module.exports.loop = function () {
 
     //-upgrader
     var upgraders = _.filter(Game.creeps, (creep) => creep.memory.role == 'upgrader');
-    console.log('Upgraders: ' + upgraders.length);
+    //console.log('Upgraders: ' + upgraders.length);
 
     if(upgraders.length < 5) {
         let newName = 'Upgrader' + Game.time;
@@ -68,7 +74,7 @@ module.exports.loop = function () {
 
     //-builders
     var builders = _.filter(Game.creeps, (creep) => creep.memory.role == 'builder');
-    console.log('Builders: ' + builders.length);
+    //console.log('Builders: ' + builders.length);
 
     if(builders.length < 2) {
         let newName = 'Builder' + Game.time;
