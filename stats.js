@@ -1,36 +1,97 @@
-// stats.js
-const MAX_HISTORY = 100; // ticks to keep in rolling averages
+/**
+ * @file stats.js
+ * @description Collects and prints rolling statistics about CPU usage, memory size, mining output,
+ * creep role counts, and controller level progress per room.
+ */
+
+const DEFAULT_MAX_HISTORY = 100; // default ticks to keep in rolling averages
+const DEFAULT_PRINT_INTERVALL = 25; //in ticks
+
+/**
+ * Pushes a value into an array and keeps the array length <= max history.
+ * @param {number[]} arr - The array to push into.
+ * @param {number} val - The value to push.
+ * @param {number} maxHistory - Maximum number of entries to keep.
+ */
+function pushRolling(arr, val, maxHistory) {
+    arr.push(val);
+    if (arr.length > maxHistory) arr.shift();
+}
+
+/**
+ * Calculates the average of all numbers in an array.
+ * @param {number[]} arr - Array of numeric values.
+ * @param {number} [decimals=2] - Number of decimal places to round to.
+ * @returns {number} The average value, rounded to the given decimal places.
+ */
+function avg(arr, decimals = 2) {
+    if (!arr || arr.length === 0) return 0;
+
+    let sum = 0;
+    for (let i = 0, len = arr.length; i < len; i++) {
+        sum += arr[i];
+    }
+
+    const average = sum / arr.length;
+    const factor = Math.pow(10, decimals);
+    return Math.round(average * factor) / factor;
+}
+
+
+/**
+ * Converts a number of bytes into a readable string with appropriate units.
+ * Used for memory
+ *
+ * @param {number} bytes - The size in bytes to format.
+ * @param {number} [decimals=2] - Number of decimal places to include in the formatted string.
+ * @returns {string} - A string representation of the size in appropriate units (Bytes, KB, MB). Memory hardcapped at 2MB
+ *
+ * @example
+ * formatBytes(1024); // "1.00 KB"
+ */
+function formatBytes(bytes) {
+    if (bytes >= 1024 * 1024) {
+        return (bytes / (1024 * 1024)).toFixed(2) + " MB";
+    } else if (bytes >= 1024) {
+        return (bytes / 1024).toFixed(2) + " KB";
+    } else {
+        return bytes.toFixed(2) + " B";
+    }
+}
+
 
 module.exports = {
-    run() {
-        if (!Memory.stats) Memory.stats = {
-            cpu: [],
-            memSize: [],
-            energyMined: [],
-            mineralMined: [],
-            creepRoles: {}
-        };
+    /**
+     * Main stats tracking function. Tracks CPU, memory, mined resources, creep role counts,
+     * and controller level progression per room.
+     * @param {number} [maxHistory=DEFAULT_MAX_HISTORY] - Optional override for max history length.
+     */
+    run(maxHistory = DEFAULT_MAX_HISTORY, printIntervall = DEFAULT_PRINT_INTERVALL) {
+        if (!Memory.stats) Memory.stats = {};
+        if (!Memory.stats.cpu) Memory.stats.cpu = [];
+        if (!Memory.stats.memSize) Memory.stats.memSize = [];
+        if (!Memory.stats.energyMined) Memory.stats.energyMined = [];
+        if (!Memory.stats.mineralMined) Memory.stats.mineralMined = [];
+        if (!Memory.stats.creepRoles) Memory.stats.creepRoles = {};
+        if (!Memory.stats.rooms) Memory.stats.rooms = {};
 
         // --- CPU ---
         const cpuUsed = Game.cpu.getUsed();
-        pushRolling(Memory.stats.cpu, cpuUsed);
+        pushRolling(Memory.stats.cpu, cpuUsed, maxHistory);
 
         // --- Memory size ---
-        const memSize = RawMemory.get().length;
-        pushRolling(Memory.stats.memSize, memSize);
+        const memSizeBytes = RawMemory.get().length;
+        pushRolling(Memory.stats.memSize, memSizeBytes, maxHistory);
 
         // --- Mining ---
         let minedEnergy = 0;
         let minedMineral = 0;
-
-        // --- Role counts reset each tick ---
-        Memory.stats.creepRoles = {};
+        Memory.stats.creepRoles = {}; // reset role counts for this tick
 
         for (const name in Game.creeps) {
             const creep = Game.creeps[name];
             if (creep.spawning) continue;
 
-            // count mined resources delivered this tick
             if (creep.store[RESOURCE_ENERGY]) {
                 minedEnergy += creep.store[RESOURCE_ENERGY];
             }
@@ -38,46 +99,57 @@ module.exports = {
                 if (res !== RESOURCE_ENERGY) minedMineral += creep.store[res];
             }
 
-            // --- Role counts ---
             const role = creep.memory.role || "unknown";
-            Memory.stats.creepRoles[role] = (Memory.stats.creepRoles[role] || 0) + 1;
+            Memory.stats.creepRoles[role] =
+                ((Memory.stats.creepRoles[role] || 0) + 1);
         }
 
-        pushRolling(Memory.stats.energyMined, minedEnergy);
-        pushRolling(Memory.stats.mineralMined, minedMineral);
+        pushRolling(Memory.stats.energyMined, minedEnergy, maxHistory);
+        pushRolling(Memory.stats.mineralMined, minedMineral, maxHistory);
 
+        // --- Room-based stats ---
+        for (const roomName in Game.rooms) {
+            const room = Game.rooms[roomName];
+            if (!room.controller || !room.controller.my) continue;
 
-        // --- Optional: show every X ticks ---
-        if (Game.time % 10=== 0) {
-            console.log("---Tick: ", Game.time, "---");
-            console.log("[Stats] CPU avg:", avg(Memory.stats.cpu).toFixed(2),
-                " | Mem avg:", formatBytes(avg(Memory.stats.memSize).toFixed(0)),
-                " | Energy avg:", avg(Memory.stats.energyMined).toFixed(1),
-                " | Mineral avg:", avg(Memory.stats.mineralMined).toFixed(1));
-                
-                for (let r in Memory.stats.creepRoles) {
-                console.log("  Role", r, ":", Memory.stats.creepRoles[r]);
+            if (!Memory.stats.rooms[roomName]) {
+                Memory.stats.rooms[roomName] = {
+                    controllerLevel: room.controller.level,
+                    levelTimes: {}
+                };
+            }
+
+            const roomStats = Memory.stats.rooms[roomName];
+
+            // If level increased, store time taken to reach it
+            if (room.controller.level > (roomStats.controllerLevel || 0)) {
+                roomStats.controllerLevel = room.controller.level;
+                roomStats.levelTimes[room.controller.level] = Game.time;
+            }
+        }
+
+        // --- Print every X ticks ---
+        if (Game.time % printIntervall === 0) {
+            console.log(`[Stats] over last ${maxHistory} ticks | GameTime: ${Game.time}`);
+            console.log(
+                "  CPU avg:", avg(Memory.stats.cpu).toFixed(2),
+                "| Limit:", Game.cpu.limit,
+                "| Mem avg:", (formatBytes(avg(Memory.stats.memSize) / 1024)),
+                "| Energy avg:", avg(Memory.stats.energyMined).toFixed(1),
+                "| Mineral avg:", avg(Memory.stats.mineralMined).toFixed(1)
+            );
+
+            for (let r in Memory.stats.creepRoles) {
+                console.log(`  Role ${r}: ${Memory.stats.creepRoles[r].toFixed(1)}`);
+            }
+
+            for (const roomName in Memory.stats.rooms) {
+                const rStats = Memory.stats.rooms[roomName];
+                console.log(`  Room ${roomName} - Controller Lvl: ${rStats.controllerLevel}`);
+                for (const lvl in rStats.levelTimes) {
+                    console.log(`    Level ${lvl} reached at tick ${rStats.levelTimes[lvl]}`);
                 }
+            }
         }
     }
 };
-
-function pushRolling(arr, val) {
-    arr.push(val);
-    if (arr.length > MAX_HISTORY) arr.shift();
-}
-
-function avg(arr) {
-    if (arr.length === 0) return 0;
-    return arr.reduce((a, b) => a + b, 0) / arr.length;
-}
-
-function formatBytes(bytes) {
-    if (bytes >= 1024 * 1024) {
-        return (bytes / (1024 * 1024)).toFixed(2) + " MB";
-    } else if (bytes >= 1024) {
-        return (bytes / 1024).toFixed(2) + " KB";
-    } else {
-        return bytes + " B";
-    }
-}
