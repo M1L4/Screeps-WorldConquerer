@@ -83,29 +83,32 @@ module.exports = {
         const memSizeBytes = RawMemory.get().length;
         pushRolling(Memory.stats.memSize, memSizeBytes, maxHistory);
 
-        // --- Mining ---
-        let minedEnergy = 0;
-        let minedMineral = 0;
+        // --- Roles ---
         Memory.stats.creepRoles = {}; // reset role counts for this tick
 
         for (const name in Game.creeps) {
             const creep = Game.creeps[name];
             if (creep.spawning) continue;
 
-            if (creep.store[RESOURCE_ENERGY]) {
-                minedEnergy += creep.store[RESOURCE_ENERGY];
-            }
-            for (const res in creep.store) {
-                if (res !== RESOURCE_ENERGY) minedMineral += creep.store[res];
-            }
-
             const role = creep.memory.role || "unknown";
             Memory.stats.creepRoles[role] =
                 ((Memory.stats.creepRoles[role] || 0) + 1);
         }
 
-        pushRolling(Memory.stats.energyMined, minedEnergy, maxHistory);
-        pushRolling(Memory.stats.mineralMined, minedMineral, maxHistory);
+
+        // --- Mining (reads per-tick counters recorded by the harvest hook) ---
+        const energyMinedThisTick  = (Memory.stats && Memory.stats.harvestTickEnergy)  || 0;
+        const mineralMinedThisTick = (Memory.stats && Memory.stats.harvestTickMinerals) || 0;
+
+        pushRolling(Memory.stats.energyMined,  energyMinedThisTick,  maxHistory);
+        pushRolling(Memory.stats.mineralMined, mineralMinedThisTick, maxHistory);
+
+        // Reset per-tick counters for the next tick's accumulation
+        if (Memory.stats) {
+            Memory.stats.harvestTickEnergy  = 0;
+            Memory.stats.harvestTickMinerals = 0;
+        }
+
 
         // --- Room-based stats ---
         for (const roomName in Game.rooms) {

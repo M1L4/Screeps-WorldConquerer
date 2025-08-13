@@ -3,6 +3,49 @@ var roleUpgrader = require('role.upgrader');
 var roleBuilder = require('role.builder');
 const stats = require('stats');
 
+/**
+ * Monkey-patches Creep.prototype.harvest to precisely count mined resources.
+ * Only increments when a real harvest occurs (not withdraw/pickup/transfer).
+ * Counts per-tick totals into Memory.stats.harvestTickEnergy / harvestTickMinerals.
+ * This patch is applied once per global reset.
+ * It is creep unspecified - every creep that does mining on a sidejob should be counted as well.
+ */
+(function patchHarvestCounting() {
+    if (global.__stats_harvest_patched) return;
+
+    console.log("---HarvestingPatch triggered!---");
+    global.__stats_harvest_patched = true;
+
+    const originalHarvest = Creep.prototype.harvest;
+
+    Creep.prototype.harvest = function (target) {
+        // Ensure Memory slots exist
+        Memory.stats = Memory.stats || {};
+        if (typeof Memory.stats.harvestTickEnergy !== "number") Memory.stats.harvestTickEnergy = 0;
+        if (typeof Memory.stats.harvestTickMinerals !== "number") Memory.stats.harvestTickMinerals = 0;
+
+        // Determine which resource to observe before/after
+        const isMineral = !!target.mineralType; // Mineral objects have .mineralType; Sources don't
+        const resourceType = isMineral ? target.mineralType : RESOURCE_ENERGY;
+
+        const before = this.store.getUsedCapacity(resourceType) || 0;
+        const result = originalHarvest.call(this, target);
+        if (result === OK) {
+            // After harvest, store has been updated in the same tick
+            const after = this.store.getUsedCapacity(resourceType) || 0;
+            const gained = Math.max(0, after - before);
+            if (gained > 0) {
+                if (isMineral) {
+                    Memory.stats.harvestTickMinerals += gained;
+                } else {
+                    Memory.stats.harvestTickEnergy += gained;
+                }
+            }
+        }
+        return result;
+    };
+})();
+
 
 function buildRoadBetween(pos1, pos2) {
     var path = pos1.findPathTo(pos2, { ignoreCreeps: true });
@@ -10,8 +53,6 @@ function buildRoadBetween(pos1, pos2) {
         Game.rooms[pos1.roomName].createConstructionSite(step.x, step.y, STRUCTURE_ROAD);
     }
 }
-
-
 
 module.exports.loop = function () {
     Game.cpu.generatePixel()
