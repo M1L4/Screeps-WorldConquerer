@@ -24,7 +24,7 @@ const JobManagementJobManager = {
 
     removeJob(targetId, type = null) {
         Memory.jobs = Memory.jobs.filter(j =>
-            j.targetId !== targetId || (type && j.type !== type)
+            j.targetId !== targetId || (type !== null && j.type !== type)
         );
     },
 
@@ -34,14 +34,24 @@ const JobManagementJobManager = {
                 const job = Memory.jobs.find(j => !j.assignedTo);
                 if (job) {
                     job.assignedTo = creep.name;
-                    creep.memory.job = job;
+                    creep.memory.job = { type: job.type, targetId: job.targetId };
                 }
             }
         }
     },
 
+    releaseJobsOfDeadCreeps() {
+        const aliveCreeps = Object.keys(Game.creeps);
+        for (const job of Memory.jobs) {
+            if (job.assignedTo && !aliveCreeps.includes(job.assignedTo)) {
+                job.assignedTo = null;
+            }
+        }
+    },
+
     getJobForCreep(creep) {
-        return creep.memory.job;
+        if (!creep.memory.job) return null;
+        return Memory.jobs.find(j => j.type === creep.memory.job.type && j.targetId === creep.memory.job.targetId) || null;
     }
 };
 
