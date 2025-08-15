@@ -6,26 +6,7 @@ const JobManagementJobEvents = {
         jobManager.initMemory();
 
         const room = Game.spawns['Spawn1'].room;
-
-        // ---- Construction Sites ----
-        const currentSites = Object.keys(Game.constructionSites);
-        const prevSites = Memory.tracked.constructionSites || [];
-
-        for (const id of currentSites) {
-            if (!prevSites.includes(id)) {
-                jobManager.addJob(JobTypes.BUILD, id);
-            }
-        }
-
-        for (const id of prevSites) {
-            if (!currentSites.includes(id)) {
-                jobManager.removeJob(id, JobTypes.BUILD);
-            }
-        }
-
-        Memory.tracked.constructionSites = currentSites;
-
-        // ---- Sources ----
+// ---- Sources ----
         const currentSources = room.find(FIND_SOURCES).map(s => s.id);
         const prevSources = Memory.tracked.sources || [];
 
@@ -74,6 +55,26 @@ const JobManagementJobEvents = {
         }
 
         Memory.tracked.haulTargets = haulTargets;
+
+        // ---- Construction Sites ----
+        const currentSites = Object.keys(Game.constructionSites);
+        const prevSites = Memory.tracked.constructionSites || [];
+
+        for (const id of currentSites) {
+            if (!prevSites.includes(id)) {
+                jobManager.addJob(JobTypes.BUILD, id);
+            }
+        }
+
+        for (const id of prevSites) {
+            if (!currentSites.includes(id)) {
+                jobManager.removeJob(id, JobTypes.BUILD);
+            }
+        }
+
+        Memory.tracked.constructionSites = currentSites;
+
+
     }
 };
 

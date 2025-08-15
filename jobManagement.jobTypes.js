@@ -1,17 +1,18 @@
 /**
  * Enums - containing all creep roles.
  * @readonly
- * @enum {string}
+ * @enum {string}: action {name of the 'class-role'}
+ * @example class-role = miner - action "Mine": name "miner" - logic at file: jobMgt.role.miner
  */
 const JobTypes = Object.freeze({
     /** Mine resources */
-    MINE: "mine",
+    MINE: "miner",
     /** Build structures */
-    BUILD: "build",
+    BUILD: "builder",
     /** Upgrade controller or other upgradable entities */
-    UPGRADE: "upgrade",
+    UPGRADE: "upgrader",
     /** Transport resources between locations */
-//    HAUL: "haul",
+    HAUL: "hauler",
     /** Repair damaged structures */
 //    REPAIR: "repair",
 });
@@ -20,21 +21,60 @@ const JobTypes = Object.freeze({
  * A mapping from job type string → corresponding role module path.
  * Built dynamically from {@link JobTypes}.
  *
+ * @todo build only once
+ *
  * @type {Record<JobTypes[keyof typeof JobTypes], string>}
  */
 
 
-const jobsMap = Object.values(JobTypes).reduce((map, jobName) => {
-    const suffix = jobName.endsWith('e') ? 'r' : 'er';
+/*
+// Create jobsMap only once
+let jobsMap = null;
+function getJobsMap() {
+    if (jobsMap) return jobsMap; // return cached map if already built
 
-    // Pfad muss exakt zum Modulnamen passen
-    const moduleName = `jobManagement.role.${jobName.toLowerCase()}${suffix}`;
+    jobsMap = {};
+    for (const jobName of Object.values(JobTypes)) {
+        const moduleName = `jobManagement.role.${jobName.toLowerCase()}`;
+        console.log("-----:    " + moduleName);
+        jobsMap[jobName] = require(moduleName);
+    }
+    return jobsMap;
+}
 
-    console.log("-----" + suffix + ":    " + moduleName)
+module.exports = { JobTypes, jobsMap: getJobsMap() };*/
 
-    map[jobName] = require(moduleName);
+/*
+// Use a global cache key to survive multiple requires within the same global.
+if (!global.__JOBS_MAP__) {
+    const m = {};
+    const roleModules = {
+        [JobTypes.MINE]:    'jobManagement.role.miner',
+        [JobTypes.BUILD]:   'jobManagement.role.builder',
+        [JobTypes.UPGRADE]: 'jobManagement.role.upgrader',
+        [JobTypes.HAUL]:    'jobManagement.role.hauler',
+    };
 
-    return map;
-}, {});
+    for (const [type, path] of Object.entries(roleModules)) {
+        console.log("-----:    " + path);
+        m[type] = require(path);
+    }
+    global.__JOBS_MAP__ = m;
+}
+
+const jobsMap = global.__JOBS_MAP__;
+
+module.exports = { JobTypes, jobsMap };
+*/
+
+const jobsMap = {};
+for (const jobName of Object.values(JobTypes)) {
+    // Path must exactly match the module name
+    const moduleName = `jobManagement.role.${jobName.toLowerCase()}`;
+
+    console.log("-----:    " + moduleName);
+
+    jobsMap[jobName] = require(moduleName);
+}
 
 module.exports = { JobTypes, jobsMap };

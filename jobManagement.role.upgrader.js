@@ -1,34 +1,31 @@
-var jobManagementRoleUpgrader = {
 
-    /** @param {Creep} creep **/
-    run: function(creep) {
+/**
+ * @file role.upgrader.js
+ * @description Executes upgrade jobs by retrieving energy from nearest supplier.
+ */
 
-        if(creep.memory.upgrading && creep.store[RESOURCE_ENERGY] == 0) {
-            creep.memory.upgrading = false;
-            creep.say('🔄 harvest');
-	    }
-	    if(!creep.memory.upgrading && creep.store.getFreeCapacity() == 0) {
-	        creep.memory.upgrading = true;
-	        creep.say('⚡ upgrade');
-	    }
+const energySupplier = require('jobManagement.energySupplier');
 
-	    if(creep.memory.upgrading) {
-            if(creep.upgradeController(creep.room.controller) == ERR_NOT_IN_RANGE) {
-                creep.moveTo(creep.room.controller, {visualizePathStyle: {stroke: '#7f1313'}});
-            }
-        }
-        else {
+/**
+ * Runs the upgrader role logic for the given creep.
+ * @param {Creep} creep - The creep executing this role.
+ */
+module.exports.run = function (creep) {
+    if (!creep.memory.job) return;
 
-            //TODO: move out of run method
-            //go to closes source to controller
-            var source = creep.room.controller.pos.findClosestByRange(FIND_SOURCES_ACTIVE)
+    const target = Game.getObjectById(creep.memory.job.targetId);
+    if (!target) {
+        creep.say('❌ target');
+        delete creep.memory.job;
+        return;
+    }
 
+    if (creep.store[RESOURCE_ENERGY] === 0) {
+        energySupplier.getEnergy(creep);
+        return;
+    }
 
-            if(creep.harvest(source) == ERR_NOT_IN_RANGE) {
-                creep.moveTo(source, {visualizePathStyle: {stroke: '#ffaa00'}});
-            }
-        }
-	}
+    if (creep.upgradeController(target) === ERR_NOT_IN_RANGE) {
+        creep.moveTo(target, { visualizePathStyle: { stroke: '#ffffff' } });
+    }
 };
-
-module.exports = jobManagementRoleUpgrader;

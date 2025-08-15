@@ -1,13 +1,13 @@
 
 /**
- * @file role.builder.js
- * @description Executes build jobs by retrieving energy from nearest supplier.
+ * @file role.hauler.js
+ * @description Executes haul jobs: retrieves energy from nearest supplier and transfers to target.
  */
 
 const energySupplier = require('jobManagement.energySupplier');
 
 /**
- * Runs the builder role logic for the given creep.
+ * Runs the hauler role logic for the given creep.
  * @param {Creep} creep - The creep executing this role.
  */
 module.exports.run = function (creep) {
@@ -25,7 +25,7 @@ module.exports.run = function (creep) {
         return;
     }
 
-    if (creep.build(target) === ERR_NOT_IN_RANGE) {
+    if (creep.transfer(target, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
         creep.moveTo(target, { visualizePathStyle: { stroke: '#ffffff' } });
     }
 };
