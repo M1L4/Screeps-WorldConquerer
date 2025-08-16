@@ -1,7 +1,8 @@
-var roleHarvester = require('role.harvester');
-var roleUpgrader = require('role.upgrader');
-var roleBuilder = require('role.builder');
-const stats = require('stats');
+/**
+ * Main game loop for Screeps.
+ * Starts up everything
+ * @module main
+ */
 
 /**
  * Monkey-patches Creep.prototype.harvest to precisely count mined resources.
@@ -47,122 +48,78 @@ const stats = require('stats');
 })();
 
 
-function buildRoadBetween(pos1, pos2) {
-    var path = pos1.findPathTo(pos2, { ignoreCreeps: true });
-    for (let step of path) {
-        Game.rooms[pos1.roomName].createConstructionSite(step.x, step.y, STRUCTURE_ROAD);
-    }
-}
+//---imports---
+//job related
+const jobManager = require('jobMgt-jobMgr');
+const jobEvents = require('jobMgt-jobCentre');
+const {JobTypes, jobsMap} = require('jobMgt-jobTypes');
 
+//monitoring
+const stats = require('monitoring-stats');
+
+//better readability exports
+const towerManager = require('towerMgr');
+const memoryMgr = require('memoryMgr');
+const labelMgr = require('labelMgr');
+const constructionPlanner = require('buildMgr');
+
+//main method
 module.exports.loop = function () {
+    //---1. preparation---
+
+    //generate pixels for decorations
     Game.cpu.generatePixel()
-    
-    //console.log("---Tick: ", Game.time, "---");
 
     //clean memory - check for death
-    for(var name in Memory.creeps) {
-        if(!Game.creeps[name]) {
-            delete Memory.creeps[name];
-            console.log('Clearing non-existing creep memory:', name);
-        }
-    }
-    
+    memoryMgr.cleanUp()
+
+    //print metrics for comparison
     stats.run();
-    
 
-    //minimum roles
-    //-harvesters
-    var harvesters = _.filter(Game.creeps, (creep) => creep.memory.role == 'harvester');
-    //console.log('Harvesters: ' + harvesters.length);
 
-    if(harvesters.length < 3) {
-        let newName = 'Harvester' + Game.time;
-        console.log('Spawning new harvester: ' + newName);
-        Game.spawns['Spawn1'].spawnCreep([WORK,CARRY,MOVE], newName,
-            {memory: {role: 'harvester'}});
+    //---2. actual code---
+
+    //assignment
+    //Todo: Job Swapping not working: to many idlers
+    jobManager.initMemory();
+    jobEvents.run();                            // Detect new/removed sources, controller, haul targets, construction sites
+    jobManager.releaseJobsOfDeadCreeps();
+    jobManager.assignJobs();                    // Assign jobs to idle creeps
+
+
+    //spawning
+    //since miners were never build and jobManagement included job switching in case of emergencies: simplified the
+    // role-differentiated minimum counts to a temporary single one
+    //Todo: reproduce until idling creeps then, stop | might have issues with different bodyparts > wokers idling > but
+    // being attacked shouldnt stop production
+    let allRCount = 15;
+    if (Object.keys(Game.creeps).length < allRCount) {
+        //iter and set name to allrounder1-15 - better readability, but costs more though
+
+        let allR = "AllRounder";
+        let newName = allR + Game.time;
+        Game.spawns['Spawn1'].spawnCreep([WORK, CARRY, MOVE], newName, { memory: { type: allR } });
     }
 
-    //-upgrader
-    var upgraders = _.filter(Game.creeps, (creep) => creep.memory.role == 'upgrader');
-    //console.log('Upgraders: ' + upgraders.length);
+    //labeling - spawns
+    labelMgr.label_spawning('Spawn1');
 
-    if(upgraders.length < 5) {
-        let newName = 'Upgrader' + Game.time;
-        console.log('Spawning new upgrader: ' + newName);
-        Game.spawns['Spawn1'].spawnCreep([WORK,CARRY,MOVE], newName,
-            {memory: {role: 'upgrader'}});
-    }
+    //all code base seperation
+    //towerManager.run();
+    constructionPlanner.run();
 
-    //construction
-    var room = Game.rooms['E3S19']
-    var controllerPos = room.controller.pos;
-    var spawn = Game.spawns['Spawn1']
-    var source = controllerPos.findClosestByRange(FIND_SOURCES_ACTIVE);
-
-    if (source) {
-        //controller - closest source
-        buildRoadBetween(controllerPos, source.pos);
-        //controller - spawn
-        buildRoadBetween(controllerPos, spawn.pos);
-
-        //spawn - 2sources
-        for(let s in room.find(FIND_SOURCES)) {
-            buildRoadBetween(spawn.pos, s.pos);
+    // Run creeps
+    for (const creep of Object.values(Game.creeps)) {
+        const job = jobManager.getJobForCreep(creep);
+        if (!job) {
+            creep.say('Idle');
+            continue;
         }
-
-    }
-
-
-    //-builders
-    var builders = _.filter(Game.creeps, (creep) => creep.memory.role == 'builder');
-    //console.log('Builders: ' + builders.length);
-
-    if(builders.length < 2) {
-        let newName = 'Builder' + Game.time;
-        console.log('Spawning new builder: ' + newName);
-        Game.spawns['Spawn1'].spawnCreep([WORK,CARRY,MOVE], newName,
-            {memory: {role: 'builder'}});
-
-    }
-
-    //spawn - print
-    if(spawn.spawning) {
-        var spawningCreep = Game.creeps[Game.spawns['Spawn1'].spawning.name];
-        Game.spawns['Spawn1'].room.visual.text(
-            '🛠️' + spawningCreep.memory.role,
-            Game.spawns['Spawn1'].pos.x + 1,
-            Game.spawns['Spawn1'].pos.y,
-            {align: 'left', opacity: 0.8});
-    }
-
-
-    var tower = Game.getObjectById('0d6b45f476c1845ae53ece26');
-    if(tower) {
-        var closestDamagedStructure = tower.pos.findClosestByRange(FIND_STRUCTURES, {
-            filter: (structure) => structure.hits < structure.hitsMax
-        });
-        if(closestDamagedStructure) {
-            tower.repair(closestDamagedStructure);
-        }
-
-        var closestHostile = tower.pos.findClosestByRange(FIND_HOSTILE_CREEPS);
-        if(closestHostile) {
-            tower.attack(closestHostile);
-        }
-    }
-
-
-    //run creeps
-    for(var name in Game.creeps) {
-        var creep = Game.creeps[name];
-        if(creep.memory.role == 'harvester') {
-            roleHarvester.run(creep);
-        }
-        if(creep.memory.role == 'upgrader') {
-            roleUpgrader.run(creep);
-        }
-        if(creep.memory.role == 'builder') {
-            roleBuilder.run(creep);
+        const jobHandler = jobsMap[job.type];
+        if (jobHandler) {
+            jobHandler.run(creep, job);
+        } else {
+            creep.say('Unknown');
         }
     }
 }

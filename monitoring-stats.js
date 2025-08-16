@@ -1,11 +1,11 @@
 /**
- * @file stats.js
+ * @file monitoring-stats.js
  * @description Collects and prints rolling statistics about CPU usage, memory size, mining output,
  * creep role counts, and controller level progress per room.
  */
 
 const DEFAULT_MAX_HISTORY = 100; // default ticks to keep in rolling averages
-const DEFAULT_PRINT_INTERVALL = 25; //in ticks
+const DEFAULT_PRINT_INTERVAL = 25; //in ticks
 
 /**
  * Pushes a value into an array and keeps the array length <= max history.
@@ -66,13 +66,13 @@ module.exports = {
      * and controller level progression per room.
      * @param {number} [maxHistory=DEFAULT_MAX_HISTORY] - Optional override for max history length.
      */
-    run(maxHistory = DEFAULT_MAX_HISTORY, printIntervall = DEFAULT_PRINT_INTERVALL) {
+    run(maxHistory = DEFAULT_MAX_HISTORY, printInterval = DEFAULT_PRINT_INTERVAL) {
         if (!Memory.stats) Memory.stats = {};
         if (!Memory.stats.cpu) Memory.stats.cpu = [];
         if (!Memory.stats.memSize) Memory.stats.memSize = [];
         if (!Memory.stats.energyMined) Memory.stats.energyMined = [];
         if (!Memory.stats.mineralMined) Memory.stats.mineralMined = [];
-        if (!Memory.stats.creepRoles) Memory.stats.creepRoles = {};
+        if (!Memory.stats.creepJob) Memory.stats.creepJob = {};
         if (!Memory.stats.rooms) Memory.stats.rooms = {};
 
         // --- CPU ---
@@ -83,32 +83,29 @@ module.exports = {
         const memSizeBytes = RawMemory.get().length;
         pushRolling(Memory.stats.memSize, memSizeBytes, maxHistory);
 
-        // --- Roles ---
-        Memory.stats.creepRoles = {}; // reset role counts for this tick
+        // --- Mining ---
+        let minedEnergy = 0;
+        let minedMineral = 0;
+        Memory.stats.creepJobs = {}; // reset role counts for this tick
 
         for (const name in Game.creeps) {
             const creep = Game.creeps[name];
             if (creep.spawning) continue;
 
-            const role = creep.memory.role || "unknown";
-            Memory.stats.creepRoles[role] =
-                ((Memory.stats.creepRoles[role] || 0) + 1);
+            if (creep.store[RESOURCE_ENERGY]) {
+                minedEnergy += creep.store[RESOURCE_ENERGY];
+            }
+            for (const res in creep.store) {
+                if (res !== RESOURCE_ENERGY) minedMineral += creep.store[res];
+            }
+
+            const job = creep.memory.job || "unknown";
+            Memory.stats.creepJobs[job] =
+                ((Memory.stats.creepJobs[job] || 0) + 1);
         }
 
-
-        // --- Mining (reads per-tick counters recorded by the harvest hook) ---
-        const energyMinedThisTick  = (Memory.stats && Memory.stats.harvestTickEnergy)  || 0;
-        const mineralMinedThisTick = (Memory.stats && Memory.stats.harvestTickMinerals) || 0;
-
-        pushRolling(Memory.stats.energyMined,  energyMinedThisTick,  maxHistory);
-        pushRolling(Memory.stats.mineralMined, mineralMinedThisTick, maxHistory);
-
-        // Reset per-tick counters for the next tick's accumulation
-        if (Memory.stats) {
-            Memory.stats.harvestTickEnergy  = 0;
-            Memory.stats.harvestTickMinerals = 0;
-        }
-
+        pushRolling(Memory.stats.energyMined, minedEnergy, maxHistory);
+        pushRolling(Memory.stats.mineralMined, minedMineral, maxHistory);
 
         // --- Room-based stats ---
         for (const roomName in Game.rooms) {
@@ -132,7 +129,7 @@ module.exports = {
         }
 
         // --- Print every X ticks ---
-        if (Game.time % printIntervall === 0) {
+        if (Game.time % printInterval === 0) {
             console.log(`[Stats] over last ${maxHistory} ticks | GameTime: ${Game.time}`);
             console.log(
                 "  CPU avg:", avg(Memory.stats.cpu).toFixed(2),
@@ -142,8 +139,8 @@ module.exports = {
                 "| Mineral avg:", avg(Memory.stats.mineralMined).toFixed(1)
             );
 
-            for (let r in Memory.stats.creepRoles) {
-                console.log(`  Role ${r}: ${Memory.stats.creepRoles[r].toFixed(1)}`);
+            for (let r in Memory.stats.creepJobs) {
+                console.log(`  Job ${r}: ${Memory.stats.creepJobs[r].toFixed(1)}`);
             }
 
             for (const roomName in Memory.stats.rooms) {
