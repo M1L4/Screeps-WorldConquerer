@@ -70,7 +70,7 @@ module.exports = { JobTypes, jobsMap };
 const jobsMap = {};
 for (const jobName of Object.values(JobTypes)) {
     // Path must exactly match the module name
-    const moduleName = `jobManagement.role.${jobName.toLowerCase()}`;
+    const moduleName = `jobMgt-role-${jobName.toLowerCase()}`;
 
     console.log("-----:    " + moduleName);
 

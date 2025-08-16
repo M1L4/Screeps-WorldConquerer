@@ -1,7 +1,7 @@
-const jobManager = require('jobManagement.jobManager');
-const { JobTypes } = require('jobManagement.jobTypes');
+const jobManager = require('jobMgt-jobMgr');
+const { JobTypes } = require('jobMgt-jobTypes');
 
-const JobManagementJobEvents = {
+const JobMgtJobCentre = {
     run() {
         jobManager.initMemory();
 
@@ -78,4 +78,4 @@ const JobManagementJobEvents = {
     }
 };
 
-module.exports = JobManagementJobEvents;
+module.exports = JobMgtJobCentre;

@@ -1,4 +1,4 @@
-const JobManagementJobManager = {
+const JobMgtJobMgr = {
     initMemory() {
         if (!Memory.jobs) Memory.jobs = [];
         if (!Memory.tracked) {
@@ -55,4 +55,4 @@ const JobManagementJobManager = {
     }
 };
 
-module.exports = JobManagementJobManager;
+module.exports = JobMgtJobMgr;

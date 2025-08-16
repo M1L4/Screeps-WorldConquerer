@@ -1,11 +1,11 @@
 
 /**
- * @file jobManagement.energySupplier.js
- * @description Provides helper functions for retrieving energy from the best available source.
+ * @file logistics-energySupplier.js
+ * @description Provides helper functions for retrieving energy from a more appropriate source.
  */
 
 /**
- * Retrieves energy for the given creep from the nearest available source in priority order:
+ * Retrieves energy for the given creep from the nearest available source from the following priority pools:
  * 1) Dropped energy
  * 2) Containers or Storage
  * 3) Spawns or Extensions

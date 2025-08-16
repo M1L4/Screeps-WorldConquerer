@@ -1,5 +1,5 @@
 /**
- * @file monitoring.stats.js
+ * @file monitoring-stats.js
  * @description Collects and prints rolling statistics about CPU usage, memory size, mining output,
  * creep role counts, and controller level progress per room.
  */
