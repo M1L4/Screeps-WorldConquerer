@@ -7,6 +7,9 @@
 const DEFAULT_MAX_HISTORY = 100; // default ticks to keep in rolling averages
 const DEFAULT_PRINT_INTERVAL = 25; //in ticks
 
+const monCreeps = require('monitoring-creeps');
+const monJobs   = require('monitoring-jobs');
+
 /**
  * Pushes a value into an array and keeps the array length <= max history.
  * @param {number[]} arr - The array to push into.
@@ -133,15 +136,18 @@ module.exports = {
             console.log(`[Stats] over last ${maxHistory} ticks | GameTime: ${Game.time}`);
             console.log(
                 "  CPU avg:", avg(Memory.stats.cpu).toFixed(2),
-                "| Limit:", Game.cpu.limit,
+                "/", Game.cpu.limit,
                 "| Mem avg:", (formatBytes(avg(Memory.stats.memSize) / 1024)),
                 "| Energy avg:", avg(Memory.stats.energyMined).toFixed(1),
                 "| Mineral avg:", avg(Memory.stats.mineralMined).toFixed(1)
             );
 
-            for (let r in Memory.stats.creepJobs) {
-                console.log(`  Job ${r}: ${Memory.stats.creepJobs[r].toFixed(1)}`);
-            }
+            // Per-room creep composition (replaces Memory.stats.creepJobs printout)
+            monCreeps.printCompositionByRoom();
+
+            // Jobs summary (count by type + open)
+            monJobs.printJobSummary();
+
 
             for (const roomName in Memory.stats.rooms) {
                 const rStats = Memory.stats.rooms[roomName];

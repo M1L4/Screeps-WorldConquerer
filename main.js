@@ -55,7 +55,7 @@ const jobEvents = require('jobMgt-jobCentre');
 const {JobTypes, jobsMap} = require('jobMgt-jobTypes');
 
 //monitoring
-const stats = require('monitoring-stats');
+const monStats = require('monitoring-stats');
 
 //better readability exports
 const towerManager = require('towerMgr');
@@ -72,10 +72,6 @@ module.exports.loop = function () {
 
     //clean memory - check for death
     memoryMgr.cleanUp()
-
-    //print metrics for comparison
-    stats.run();
-
 
     //---2. actual code---
 
@@ -122,4 +118,9 @@ module.exports.loop = function () {
             creep.say('Unknown');
         }
     }
+
+    //3. monitoring
+    //- print metrics for comparison
+    monStats.run();
+
 }
